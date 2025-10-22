@@ -1,0 +1,65 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: quantum
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  auth:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    env_file:
+      - ./services/auth/.env
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./services/auth:/usr/src/app
+    command: sh -c "npm run migrate && npm run dev"
+
+  network:
+    build:
+      context: ./services/network
+      dockerfile: Dockerfile
+    env_file:
+      - ./services/network/.env
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "4100:4100"
+    volumes:
+      - ./services/network:/usr/src/app
+    command: npm run dev
+
+  mobile-expo:
+    image: node:18-bullseye
+    working_dir: /usr/src/app
+    volumes:
+      - ./mobile:/usr/src/app
+    ports:
+      - "19002:19002"
+      - "19000:19000"
+      - "19001:19001"
+    command: sh -c "cd /usr/src/app && npm ci && npx expo start --tunnel"
+    environment:
+      - EXPO_DEVTOOLS_LISTEN=0.0.0.0:19002
+
+volumes:
+  pgdata:
